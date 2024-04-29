@@ -1,5 +1,6 @@
 package org.example;
 
+import net.bytebuddy.dynamic.scaffold.MethodGraph;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Color;
@@ -16,13 +17,156 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.WatchEvent;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+
+        final String URL = "http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php";
+
+        Map<String, String> mapeamentoCodigosEstados = new LinkedHashMap<>();
+        Map<String, String> mapeamentoCodigosMunicipios = new LinkedHashMap<>();
+        Map<String, String> mapeamentoCodigosPeriodos = new LinkedHashMap<>();
+        //Set<WebElement> listaTotalMunicipios = new LinkedHashSet<>();
+
+        WebDriver driver = new ChromeDriver();
+        driver.get(URL);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
+
+        WebElement webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
+        Select selectPeriodo = new Select(webElementPeriodo);
+        List<WebElement> listaPeriodos = selectPeriodo.getOptions();
+
+        for(WebElement we : listaPeriodos) {
+            mapeamentoCodigosPeriodos.put(we.getAttribute("value"), we.getText());
+        }
+
+        WebElement webElementUf = driver.findElement(By.id("cmbUF"));
+        Select selectUf = new Select(webElementUf);
+        List<WebElement> listaUfs = selectUf.getOptions();
+
+        for(int i = 0; i < listaUfs.size(); i++) {
+            mapeamentoCodigosEstados.put(listaUfs.get(i).getAttribute("value"), listaUfs.get(i).getText());
+        }
+
+        WebElement webElementMunicipio;
+        Select selectMunicipio;
+        List<WebElement> listaMunicipios;
+
+        // para poder popular a chave do Acre. Quando a página é aberta, embora o Acre seja o primeiro estado,
+        // a caixa de seleção de municípios não é populada. Assim, é preciso selecionar outro elemento e voltar ao Acre
+        // ppara que a caixa seja populada.
+        webElementUf = driver.findElement(By.id("cmbUF"));
+        selectUf = new Select(webElementUf);
+        selectUf.selectByIndex(1);
+
+        for(int uf = 0; uf < 1; uf++) {
+            WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+            selectUf = new Select(elUf);
+            selectUf.selectByIndex(uf);
+
+            webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+            selectMunicipio = new Select(webElementMunicipio);
+            listaMunicipios = selectMunicipio.getOptions();
+
+            for(WebElement we : listaMunicipios) mapeamentoCodigosMunicipios.put(we.getAttribute("value"), we.getText());
+        }
+
+        String codigoEstado = "0", nomeEstado = "";
+
+        int numeroLinha = 1;
+        Map<Integer, Object[]> dadosTabela = new TreeMap<>();
+        dadosTabela.put(numeroLinha++, new Object[]{"UF", "IBGE", "Município", "União corrente", "União capital", "Total atenção básica corrente", "Total atenção básica capital"});
+
+        for (String codigoMunicipio : mapeamentoCodigosMunicipios.keySet()) {
+
+            if(!codigoEstado.startsWith(codigoMunicipio.substring(0, 2))) {
+                codigoEstado = codigoMunicipio.substring(0, 2);
+                nomeEstado = mapeamentoCodigosEstados.get(codigoEstado);
+            }
+
+            String nomeMunicipio = mapeamentoCodigosMunicipios.get(codigoMunicipio);
+
+            StringBuilder url = new StringBuilder(URL).append("?S=1&UF=").append(codigoEstado).append(";&Municipio=").append(codigoMunicipio).append(";&Ano=2020&Periodo=12");
+            driver.get(url.toString());
+
+            WebElement submitButton = driver.findElement(By.name("BtConsultar"));
+            submitButton.click();
+
+            // chamar método de inserção das informações em uma lista
+            String ausenciaDeDados = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(1).findElements(By.tagName("td")).get(0).getText();
+
+             if(ausenciaDeDados.equals("Subfunções")) {
+                 String uniaoCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(4).getText();
+                 String totalCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(10).getText();
+                 String uniaoCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(3).getText();
+                 String totalCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(9).getText();
+                 dadosTabela.put(numeroLinha++, new Object[]{nomeEstado, codigoMunicipio, nomeMunicipio, uniaoCorrente, uniaoCapital, totalCorrente, totalCapital});
+            } else {
+                 dadosTabela.put(numeroLinha++, new Object[]{nomeEstado, codigoMunicipio, nomeMunicipio, ausenciaDeDados});
+            }
+
+            driver.navigate().back();
+        }
+
+        driver.close();
+
+        XSSFWorkbook workbook = new XSSFWorkbook();
+        XSSFSheet sheet = workbook.createSheet("1º Bimestre");
+        Row dadosMunicipios;
+        int idColuna = 0, idLinha = 0;
+
+        for (Integer key : dadosTabela.keySet()) {
+            dadosMunicipios = sheet.createRow(idColuna++);
+            Object[] objectArr = dadosTabela.get(key);
+            int cellId = 0;
+
+            if(objectArr.length == 4) {
+                sheet.addMergedRegion(CellRangeAddress.valueOf("D" + (idLinha + 1) + ":G" + (idLinha + 1)));
+                for(Object obj : objectArr) {
+                    Cell cell = dadosMunicipios.createCell(cellId++);
+                    cell.setCellValue((String) obj);
+                }
+            } else {
+                for(Object obj : objectArr) {
+                    Cell cell = dadosMunicipios.createCell(cellId++);
+                    cell.setCellValue((String)obj);
+                }
+            }
+            idLinha++;
+        }
+
+        for(int i = 0; i < idColuna; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        FileOutputStream out = new FileOutputStream("C:/Users/Naionara Ramos/Projetos/robot/planilhas/2020.xlsx");
+        workbook.write(out);
+        out.close();
+
+        System.exit(0);
+
+        // testar com um bimestre para ver a diferença.
+        // Pontos a serem considerados: como fazer loop pelos períodos sem aninhar muitos loops.
+        // condição dos anos posteriores a 2020, quando há uma coluna a mais na tabela.
+        // divisão dos vários loops em métodos.
+
+        // pensar na criação de algo do tipo: Map<String, List<String>> mapeandoUrlsAosDados ...,
+        //    para jogar as bases das urls e as informações já existentes: UF, codigo IBGE, nome município...
+        //    e percorrer as urls em um método à parte.
+    }
+
+    /*public static void main(String[] args) throws IOException {
+
+        // gerar a planilha do 1ºbimestre de 2020 para todos os municípios demorou 2 horas e 40 minutos.
 
         final String URL = "http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php";
 
@@ -36,7 +180,7 @@ public class Main {
         Select selectAno = new Select(webElementAno);
         List<WebElement> listaAnos = selectAno.getOptions();
 
-        for(int ano = listaAnos.size() - 1; ano >= 2; ano--) {
+        for(int ano = listaAnos.size() - 1; ano >= 3; ano--) {
 
             webElementAno = driver.findElement(By.id("cmbAno"));
             selectAno = new Select(webElementAno);
@@ -53,7 +197,7 @@ public class Main {
 
             XSSFWorkbook workbook = new XSSFWorkbook();
 
-            for (int periodo = 0; periodo < 2; periodo++) {
+            for (int periodo = 0; periodo < 1; periodo++) {
                 webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
                 selectPeriodo = new Select(webElementPeriodo);
                 selectPeriodo.selectByIndex(periodo);
@@ -74,7 +218,7 @@ public class Main {
                 dadosTabela.put(numeroLinha++, new Object[]{"UF", "IBGE", "Município", "União corrente",
                         "União capital", "Total atenção básica corrente", "Total atenção básica capital"});
 
-                for(int uf = 0; uf < 2; uf++) {
+                for(int uf = 0; uf < listaUfs.size(); uf++) {
 
                     webElementUf = driver.findElement(By.id("cmbUF"));
                     selectUf = new Select(webElementUf);
@@ -89,7 +233,7 @@ public class Main {
                     Select selectMunicipio = new Select(webElementMunicipio);
                     List<WebElement> listaMunicipios = selectMunicipio.getOptions();
 
-                    for(int municipio = 0; municipio < 2; municipio++) {
+                    for(int municipio = 0; municipio < listaMunicipios.size(); municipio++) {
 
                         webElementMunicipio = driver.findElement(By.id("cmbMunicipio"));
                         selectMunicipio = new Select(webElementMunicipio);
@@ -130,18 +274,28 @@ public class Main {
 
                         // voltar
                         driver.navigate().back();
+
+                        webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
+                        selectPeriodo = new Select(webElementPeriodo);
+                        selectPeriodo.selectByIndex(periodo);
                     }
                 }
 
                 for(Integer key : dadosTabela.keySet()) {
                     dadosMunicipios = sheet.createRow(idColuna++);
+                    //sheet.autoSizeColumn(idColuna);
                     Object[] objectArr = dadosTabela.get(key);
                     int cellId = 0;
 
                     for(Object obj : objectArr) {
                         Cell cell = dadosMunicipios.createCell(cellId++);
+                        sheet.autoSizeColumn(idColuna);
                         cell.setCellValue((String)obj);
                     }
+                }
+
+                for(int i = 0; i < idColuna; i++) {
+                    sheet.autoSizeColumn(i);
                 }
             }
 
@@ -152,7 +306,11 @@ public class Main {
 
         driver.close();
         System.exit(0);
-    }
+    }*/
+
+//    private Map<Integer, Object[]> montagemListagemDados() {
+//
+//    }
 
     private static void valoresTabelaPorMunicípio(WebDriver driver) {
         String uniaoCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(4).getText();
@@ -257,99 +415,4 @@ public class Main {
         out.close();
     }
 
-    private static void deuErradoReverDepoisOndeTaATreta(WebDriver driver) {
-        WebElement ano = driver.findElement(By.id("cmbAno"));
-        WebElement periodo = driver.findElement(By.name("cmbPeriodo"));
-        WebElement uf = driver.findElement(By.id("cmbUF"));
-        WebElement municipio = driver.findElement(By.id("cmbMunicipio"));
-
-        System.out.println("1: " + ano.getText());
-        System.out.println("2: " + periodo.getText());
-        System.out.println("3: " + uf.getText());
-
-        Select selectAno = new Select(ano);
-        Select selectPeriodo = new Select(periodo);
-        Select selectUf = new Select(uf);
-        Select selectMunicipio = new Select(municipio);
-
-        List<WebElement> listaAnos = selectAno.getOptions();
-        List<WebElement> listaPeriodos = selectPeriodo.getOptions();
-        List<WebElement> listaEstados = selectUf.getOptions();
-        // List<WebElement> listaMunicipios = selectMunicipio.getOptions();
-
-        System.out.println("anos: " + listaAnos.size());
-        System.out.println("períodos: " + listaPeriodos.size());
-        System.out.println("estados: " + listaEstados.size());
-
-        for(int i = listaAnos.size() - 1; i >= 0; i--) {
-            System.out.println("Ano " + i + ": " + listaAnos.get(i).getText());
-        }
-
-        for(int j = 0; j < listaPeriodos.size(); j++) {
-            System.out.println("Período " + j + ": " + listaPeriodos.get(j).getText());
-        }
-
-        for(int k = 0; k < listaEstados.size(); k++) {
-            System.out.println("Estado " + k + ": " + listaEstados.get(k).getText());
-        }
-
-        selectAno.selectByIndex(3);
-        selectPeriodo.selectByIndex(0);
-        selectUf.selectByIndex(0);
-
-        System.out.println("4: " + municipio.getText());
-
-        List<WebElement> listaMunicipios = selectMunicipio.getOptions();
-        System.out.println("municípios: " + listaMunicipios.size());
-        for(int l = 0; l < listaMunicipios.size(); l++) {
-            System.out.println("Município " + l + ": " + listaMunicipios.get(l).getText());
-        }
-
-        selectMunicipio.selectByIndex(0);
-    }
 }
-
-//        Map<String, List<String>> municipiosPorEstado = new LinkedHashMap<>();
-//
-//        selectAno.selectByIndex(3);
-
-//        for(int e = 0; e < listaEstados.size(); e++) {
-//            String estado = listaEstados.get(e).getText();
-//            List<String> municipios = new ArrayList<>();
-//
-//            for(WebElement we : listaMunicipios) municipios.add(we.getText());
-//
-//            municipiosPorEstado.put(estado, municipios);
-//        }
-
-// for(String e : municipiosPorEstado.keySet()) System.out.println(e + " -> " + municipiosPorEstado.get(e).size());
-
-//        for(int i = listaAnos.size() - 1; i >= 0; i--) {
-//            selectAno.selectByIndex(i);
-//            for(int j = 0; j < listaPeriodos.size(); j++) {
-//                selectPeriodo.selectByIndex(j);
-//                for(int k = 0; k < listaEstados.size(); k++) {
-//                    selectUf.selectByIndex(k);
-//                    List<WebElement> listaMunicipios = selectMunicipio.getOptions();
-//                    for(int l = 0; l < listaMunicipios.size(); l++) {
-//                        System.out.println(listaMunicipios.get(l));
-//                    }
-//                    submitButton.click();
-//                }
-//            }
-//        }
-
-//        // análise da tabela
-//        WebElement findTable = driver.findElement(By.tagName("table"));
-//        List<WebElement> trs = findTable.findElements(By.tagName("tr"));
-//
-//        List<WebElement> tdsCorrente = trs.get(2).findElements(By.tagName("td"));
-//        String uniaoCorrente = tdsCorrente.get(4).getText();
-//        String totalCorrente = tdsCorrente.get(10).getText();
-//
-//        List<WebElement> tdsCapital = trs.get(3).findElements(By.tagName("td"));
-//        String uniaoCapital = tdsCapital.get(3).getText();
-//        String totalCapital = tdsCapital.get(9).getText();
-//
-//        List<WebElement> tdsTotal = trs.get(16).findElements(By.tagName("td"));
-//        String total = tdsTotal.get(3).getText();
