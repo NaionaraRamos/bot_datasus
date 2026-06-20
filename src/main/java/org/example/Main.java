@@ -11,14 +11,22 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.WatchEvent;
@@ -28,7 +36,298 @@ import java.util.stream.Collectors;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    // esse mapeamento é de um para um. Talvez fosse melhor utilizar um Pair em vez de um mapa.
+    private static Map<String, String> getStatesCodes(WebDriver driver) {
+        Map<String, String> statesCodesMap = new TreeMap<>();
+
+        WebElement webElementUF = driver.findElement(By.id("cmbUF"));
+        Select selectUF = new Select(webElementUF);
+        List<WebElement> listaUFs = selectUF.getOptions();
+        
+        for(int uf = 0; uf < listaUFs.size(); uf++) {
+            String stateName = listaUFs.get(uf).getText();
+            String stateCode = listaUFs.get(uf).getAttribute("value");
+            System.out.println(stateName + " - " + stateCode);
+            statesCodesMap.put(stateName, stateCode);
+
+            // selectUF = new Select(webElementUF);
+            // selectUF.selectByIndex(1);
+
+            //WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+            //selectUf = new Select(elUf);
+            //selectUF.selectByIndex(uf);
+
+           // webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+            //selectMunicipio = new Select(webElementMunicipio);
+            //listaMunicipios = selectMunicipio.getOptions();
+
+        }
+        
+        return statesCodesMap;
+    }
+
+    private static Map<String, String> getCitiesCodes(WebDriver driver) {
+        Map<String, String> citiesCodesMap = new TreeMap<>();
+
+        WebElement webElementMunicipio = driver.findElement(By.id("cmbMunicipio"));
+        Select selectMunicipio = new Select(webElementMunicipio);
+        List<WebElement> listaMunicipios = selectMunicipio.getOptions();
+        for(int city = 0; city < listaMunicipios.size(); city++) {
+            String cityName = listaMunicipios.get(city).getText();
+            String cityCode = listaMunicipios.get(city).getAttribute("value");
+            System.out.println(cityName + " - " + cityCode);
+            citiesCodesMap.put(cityName, cityCode);
+        }
+        return citiesCodesMap;
+    }
+
+    private static void writeItems(String filename, List<String> itemsList) {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename + ".txt"))) {
+            for (String item : itemsList) {
+                bw.write(item);
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // private static void testMap(WebDriver driver) {
+        
+    //     WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
+    //     Map<String, List<String>> mappingCitiesToState = new LinkedHashMap<>();
+
+    //     WebElement webElementUf = driver.findElement(By.id("cmbUF"));
+    //     Select selectUf = new Select(webElementUf);
+    //     List<WebElement> listaUfs = selectUf.getOptions();
+
+    //     WebElement webElementMunicipio;
+    //     Select selectMunicipio;
+    //     List<WebElement> listaMunicipios;
+
+    //     // webElementUf = driver.findElement(By.id("cmbUF"));
+    //     //selectUf = new Select(webElementUf);
+    //     selectUf.selectByIndex(1);
+    //    // String ufCode = "";
+
+    //     //for(int uf = 0; uf < 4; uf++) {
+    //     //for(int i = 0; i < listaUfs.size(); i++) {
+    //     for(WebElement uf : listaUfs) {
+    //         //ufCode = listaUfs.get(i).getAttribute("value");
+
+    //         //WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+    //        // selectUf = new Select(elUf);
+    //         //selectUf.selectByIndex(i);
+    //         String ufCode = uf.getAttribute("value");
+
+    //         webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+    //         selectMunicipio = new Select(webElementMunicipio);
+    //         listaMunicipios = selectMunicipio.getOptions();
+    //         List<String> citiesCodes = new ArrayList<>();
+
+    //         for(WebElement we : listaMunicipios) {
+    //             String cityCode = we.getAttribute("value");
+    //             citiesCodes.add(cityCode);
+    //         }
+
+    //         // int citiesLen = citiesCodes.size();
+    //         // System.out.println(citiesLen);
+    //         mappingCitiesToState.put(ufCode, citiesCodes);
+    //     }
+    // }
+
+    private static Map<String, List<String>> mapeamentoMunicipiosParaEstados(WebDriver driver) {
+        Map<String, List<String>> mapeamentoCidadesParaEstados = new TreeMap<>();
+        
+        WebElement webElementUF = driver.findElement(By.id("cmbUF"));
+        Select selectUF = new Select(webElementUF);
+        //selectUF.selectByIndex(1);
+        List<WebElement> listaUFs = selectUF.getOptions();
+        selectUF.selectByIndex(1);
+        
+        for(int uf = 0; uf < 3; uf++) {
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
+            WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+            //selectUF = new Select(elUf);
+            selectUF.selectByIndex(uf);
+            String ufValue = listaUFs.get(uf).getText();  //listaUFs.get(uf).getAttribute("value");
+            
+            WebElement webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio"))); //driver.findElement(By.id("cmbMunicipio"));
+            Select selectMunicipio = new Select(webElementMunicipio);
+            List<WebElement> listaMunicipios = selectMunicipio.getOptions();
+            List<String> listaCodigosCidades = new ArrayList<>();
+
+            for(int city = 0; city < listaMunicipios.size(); city++) {
+                String cityValue = listaMunicipios.get(city).getAttribute("value");
+                listaCodigosCidades.add(cityValue);
+            }
+            mapeamentoCidadesParaEstados.put(ufValue, listaCodigosCidades);
+        }
+
+        // for(int uf = 0; uf < 1; uf++) {
+        //     WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+        //     selectUf = new Select(elUf);
+        //     selectUf.selectByIndex(uf);
+
+        //     webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+        //     selectMunicipio = new Select(webElementMunicipio);
+        //     listaMunicipios = selectMunicipio.getOptions();
+
+        //     for(WebElement we : listaMunicipios) mapeamentoCodigosMunicipios.put(we.getAttribute("value"), we.getText());
+        // }
+
+        return mapeamentoCidadesParaEstados;
+    }
+
+    private static void writeMapItems(String filename, Map<String, List<String>> mapItemsList) {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename + ".txt"))) {
+            for (String item : mapItemsList.keySet()) {
+                bw.write("----------" + item + "----------");
+                List<String> subItems = mapItemsList.get(item);
+                for(String subItem : subItems) {
+                    bw.write(subItem);
+                    bw.newLine();
+                }
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static Map<String, List<String>> newTestMap(WebDriver driver) {
+        
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
+        WebElement webElementUf = driver.findElement(By.id("cmbUF"));
+        Select selectUf = new Select(webElementUf);
+        List<WebElement> listaUfs = selectUf.getOptions();
+        List<String> ufsCodes = new LinkedList<>();
+
+        for(WebElement uf : listaUfs) {
+            ufsCodes.add(uf.getAttribute("value"));
+        }
+        
+        Map<String, List<String>> mappingCitiesToState = new LinkedHashMap<>();
+        WebElement webElementMunicipio;
+        Select selectMunicipio;
+        List<WebElement> listaMunicipios;
+
+        webElementUf = driver.findElement(By.id("cmbUF"));
+        selectUf = new Select(webElementUf);
+        selectUf.selectByIndex(1);
+
+        for(int uf = 0; uf < ufsCodes.size(); uf++) {
+            
+            String ufCode = ufsCodes.get(uf);
+            List<String> citiesCodes = new ArrayList<>(); 
+            webElementUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+            selectUf = new Select(webElementUf);
+            selectUf.selectByIndex(uf);
+
+            webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+            selectMunicipio = new Select(webElementMunicipio);
+            listaMunicipios = selectMunicipio.getOptions();
+
+            for(WebElement we : listaMunicipios) {
+                String cityCode = we.getAttribute("value");
+                citiesCodes.add(cityCode);
+            }
+            
+            mappingCitiesToState.put(ufCode, citiesCodes);
+        }
+
+        return mappingCitiesToState;
+    }
+
+    private static List<String> formBasicUrls(WebDriver driver) {
+
+        List<String> stateCityUrls = new ArrayList<>();
+        
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
+        WebElement webElementUf = driver.findElement(By.id("cmbUF"));
+        Select selectUf = new Select(webElementUf);
+        List<WebElement> listaUfs = selectUf.getOptions();
+        List<String> ufsCodes = new LinkedList<>();
+
+        for(WebElement uf : listaUfs) {
+            ufsCodes.add(uf.getAttribute("value"));
+        }
+        
+        WebElement webElementMunicipio;
+        Select selectMunicipio;
+        List<WebElement> listaMunicipios;
+
+        webElementUf = driver.findElement(By.id("cmbUF"));
+        selectUf = new Select(webElementUf);
+        selectUf.selectByIndex(1);
+
+        for(int uf = 0; uf < ufsCodes.size(); uf++) {
+            
+            String ufCode = ufsCodes.get(uf);
+            webElementUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
+            selectUf = new Select(webElementUf);
+            selectUf.selectByIndex(uf);
+
+            webElementMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
+            selectMunicipio = new Select(webElementMunicipio);
+            listaMunicipios = selectMunicipio.getOptions();
+
+            for(WebElement we : listaMunicipios) {
+                String cityCode = we.getAttribute("value");
+                StringBuilder basicUrl = new StringBuilder("http://siops.datasus.gov.br/consleirespfiscal.php?S=1&UF=").append(ufCode).append(";&Municipio=").append(cityCode); //;&Ano=2021&Periodo=2";
+                stateCityUrls.add(basicUrl.toString());
+            }
+        }
+
+        return stateCityUrls;
+    }
+
+    private static List<String> readItems(String filename) throws FileNotFoundException, IOException {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        List<String> basicUrls = new ArrayList<>();
+        String st;
+        while((st = br.readLine()) != null) {
+            basicUrls.add(st);
+        }
+        br.close();
+        return basicUrls;
+    }
+
+    public static void main(String[] args) throws FileNotFoundException, IOException {
+
+        final String URL = "https://siops.datasus.gov.br/consleirespfiscal.php";//?S=1&UF=12;&Municipio=120001;&Ano=2020&Periodo=2";
+        WebDriver driver = new Main().getWebDriver(args);
+        
+        // para criar as urls base, com UF e Município
+        // List<String> mapping = formBasicUrls(driver);
+        // writeItems("URLS_cidades", mapping);
+
+        // para ler as urls base
+        List<String> basicUrls = readItems("URLS_cidades.txt");
+        System.out.println("size: " + basicUrls.size());
+
+        // int year = 2016; // vai até 2025
+        // int period = 12;
+        // for (String url : basicUrls) {
+        //     url = url + ";&Ano=" + year + ";&Periodo=" + period;
+
+        //     driver.get(url);
+        //     //driver.manage().window().maximize();
+
+            // WebElement submitButton = driver.findElement(By.name("BtConsultar"));
+            // submitButton.click();
+
+        //     driver.navigate().back();
+        // }
+
+        driver.get(URL);
+        WebElement submitButton = driver.findElement(By.name("BtConsultar"));
+        submitButton.click();
+        driver.navigate().back();
+        driver.close();
+    }
+
+    /*public static void main(String[] args) throws IOException, InterruptedException {
 
         final String URL = "http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php";
 
@@ -163,256 +462,83 @@ public class Main {
         //    para jogar as bases das urls e as informações já existentes: UF, codigo IBGE, nome município...
         //    e percorrer as urls em um método à parte.
     }
+*/
+    
+// Escolha de navegador via argumento (ex: "chromium" ou "chrome").
+    // Se nenhum argumento for passado, usa Chromium por padrão.
+    private WebDriver getWebDriver(String[] args) {
+        String browser = (args.length > 0) ? args[0].trim().toLowerCase() : "chromium";
 
-    /*public static void main(String[] args) throws IOException {
+        WebDriver driver;
+        switch (browser) {
+            case "chromium" -> {
+                String chromiumBinary = System.getenv().getOrDefault("CHROMIUM_BIN", "/var/lib/snapd/snap/bin/chromium");
+                String chromedriverBinary = System.getenv("CHROMEDRIVER_BIN");
 
-        // gerar a planilha do 1ºbimestre de 2020 para todos os municípios demorou 2 horas e 40 minutos.
+                ChromeOptions chromeOptions = new ChromeOptions();
+                chromeOptions.setBinary(chromiumBinary);
 
-        final String URL = "http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php";
+                // O Chromium snap costuma falhar com sandbox e espaços de memória.
+                // Forçar um perfil temporário também ajuda quando o navegador não consegue criar pastas no snap.
+                String tmpProfile = System.getProperty("java.io.tmpdir") + "/selenium-profile-" + UUID.randomUUID();
+                chromeOptions.addArguments(
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                        "--disable-extensions",
+                        "--disable-software-rasterizer",
+                        "--remote-debugging-port=9222",
+                        "--user-data-dir=" + tmpProfile
+                );
 
-        WebDriver driver = new ChromeDriver();
-        driver.get(URL);
-        driver.manage().window().maximize();
-
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(1));
-
-        WebElement webElementAno = driver.findElement(By.id("cmbAno"));
-        Select selectAno = new Select(webElementAno);
-        List<WebElement> listaAnos = selectAno.getOptions();
-
-        for(int ano = listaAnos.size() - 1; ano >= 3; ano--) {
-
-            webElementAno = driver.findElement(By.id("cmbAno"));
-            selectAno = new Select(webElementAno);
-            selectAno.selectByIndex(ano);
-
-            WebElement elAno = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbAno")));
-            selectAno = new Select(elAno);
-            String stringAno = selectAno.getOptions().get(ano).getText();
-            System.out.println(stringAno);
-
-            WebElement webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
-            Select selectPeriodo = new Select(webElementPeriodo);
-            List<WebElement> listaPeriodos = selectPeriodo.getOptions();
-
-            XSSFWorkbook workbook = new XSSFWorkbook();
-
-            for (int periodo = 0; periodo < 1; periodo++) {
-                webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
-                selectPeriodo = new Select(webElementPeriodo);
-                selectPeriodo.selectByIndex(periodo);
-
-                WebElement elPeriodo = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbPeriodo")));
-                selectPeriodo = new Select(elPeriodo);
-                String stringPeriodo = selectPeriodo.getOptions().get(periodo).getText();
-
-                WebElement webElementUf = driver.findElement(By.id("cmbUF"));
-                Select selectUf = new Select(webElementUf);
-                List<WebElement> listaUfs = selectUf.getOptions();
-                System.out.println(stringPeriodo);
-
-                XSSFSheet sheet = workbook.createSheet(stringPeriodo);
-                Row dadosMunicipios;
-                int numeroLinha = 1, idColuna = 0;
-                Map<Integer, Object[]> dadosTabela = new TreeMap<>();
-                dadosTabela.put(numeroLinha++, new Object[]{"UF", "IBGE", "Município", "União corrente",
-                        "União capital", "Total atenção básica corrente", "Total atenção básica capital"});
-
-                for(int uf = 0; uf < listaUfs.size(); uf++) {
-
-                    webElementUf = driver.findElement(By.id("cmbUF"));
-                    selectUf = new Select(webElementUf);
-                    selectUf.selectByIndex(uf);
-
-                    WebElement elUf = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbUF")));
-                    selectUf = new Select(elUf);
-                    String stringUf = selectUf.getOptions().get(uf).getText();
-                    //System.out.println("UF: " + stringUf);
-
-                    WebElement webElementMunicipio = driver.findElement(By.id("cmbMunicipio"));
-                    Select selectMunicipio = new Select(webElementMunicipio);
-                    List<WebElement> listaMunicipios = selectMunicipio.getOptions();
-
-                    for(int municipio = 0; municipio < listaMunicipios.size(); municipio++) {
-
-                        webElementMunicipio = driver.findElement(By.id("cmbMunicipio"));
-                        selectMunicipio = new Select(webElementMunicipio);
-                        selectMunicipio.selectByIndex(municipio);
-
-                        WebElement elMunicipio = wait.until(ExpectedConditions.elementToBeClickable(By.id("cmbMunicipio")));
-                        selectMunicipio = new Select(elMunicipio);
-                        String valorIBGE = elMunicipio.getAttribute("value");
-                        String nomeMunicipio = selectMunicipio.getOptions().get(municipio).getText();
-
-//                        String stringMunicipio = selectMunicipio.getOptions().get(municipio).getAttribute("value");
-//                        System.out.println(stringMunicipio);
-
-                        WebElement submitButton = driver.findElement(By.name("BtConsultar"));
-                        submitButton.click();
-
+                if (chromedriverBinary != null && !chromedriverBinary.isBlank()) {
+                    System.setProperty("webdriver.chrome.driver", chromedriverBinary);
+                } else {
+                    // Ajustar a versão do chromedriver para a versão do Chromium instalado.
+                    String chromeVersion = detectChromiumVersion(chromiumBinary);
+                    if (chromeVersion != null) {
+                        String majorVersion = chromeVersion.split("\\.")[0];
+                        System.out.println("Detected Chromium version: " + chromeVersion + " (major=" + majorVersion + ")");
                         try {
-                            //valoresTabelaPorMunicípio(driver);
-                            String uniaoCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(4).getText();
-                            String totalCorrente; // = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(10).getText();
-                            String uniaoCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(3).getText();
-                            String totalCapital; // = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(9).getText();
-                            // String total = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(16).findElements(By.tagName("td")).get(3).getText();
-
-                            if(stringAno.equals("2020")) { // resultados errados na planilha quando em 2020
-                                totalCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(10).getText();
-                                totalCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(9).getText();
-                            } else {
-                                totalCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(11).getText();
-                                totalCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(10).getText();
-                            }
-
-                            dadosTabela.put(numeroLinha++, new Object[]{stringUf, valorIBGE, nomeMunicipio, uniaoCorrente, uniaoCapital, totalCorrente, totalCapital});
-
-                        } catch (Exception e) {
-                            System.out.println(e);
+                            WebDriverManager.chromedriver().browserVersion(majorVersion).setup();
+                        } catch (Exception firstTry) {
+                            // fallback para tentar usar a versão exata completa
+                            WebDriverManager.chromedriver().driverVersion(chromeVersion).setup();
                         }
-
-                        // voltar
-                        driver.navigate().back();
-
-                        webElementPeriodo = driver.findElement(By.id("cmbPeriodo"));
-                        selectPeriodo = new Select(webElementPeriodo);
-                        selectPeriodo.selectByIndex(periodo);
+                    } else {
+                        WebDriverManager.chromedriver().setup();
                     }
                 }
 
-                for(Integer key : dadosTabela.keySet()) {
-                    dadosMunicipios = sheet.createRow(idColuna++);
-                    //sheet.autoSizeColumn(idColuna);
-                    Object[] objectArr = dadosTabela.get(key);
-                    int cellId = 0;
-
-                    for(Object obj : objectArr) {
-                        Cell cell = dadosMunicipios.createCell(cellId++);
-                        sheet.autoSizeColumn(idColuna);
-                        cell.setCellValue((String)obj);
-                    }
-                }
-
-                for(int i = 0; i < idColuna; i++) {
-                    sheet.autoSizeColumn(i);
-                }
+                driver = new ChromeDriver(chromeOptions);
             }
-
-            FileOutputStream out = new FileOutputStream("C:/Users/Naionara Ramos/Projetos/robot/planilhas/" + stringAno + ".xlsx");
-            workbook.write(out);
-            out.close();
+            case "chrome" -> {
+                WebDriverManager.chromedriver().setup();
+                ChromeOptions chromeOptions = new ChromeOptions();
+                driver = new ChromeDriver(chromeOptions);
+            }
+            case "firefox", "ff" -> {
+                WebDriverManager.firefoxdriver().setup();
+                FirefoxOptions firefoxOptions = new FirefoxOptions();
+                driver = new FirefoxDriver(firefoxOptions);
+            }
+            default -> throw new IllegalArgumentException("Navegador desconhecido: " + browser + ". Use 'firefox', 'chromium' ou 'chrome'.");
         }
 
-        driver.close();
-        System.exit(0);
-    }*/
-
-//    private Map<Integer, Object[]> montagemListagemDados() {
-//
-//    }
-
-    private static void valoresTabelaPorMunicípio(WebDriver driver) {
-        String uniaoCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(4).getText();
-        String totalCorrente = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(2).findElements(By.tagName("td")).get(10).getText();
-        String uniaoCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(3).getText();
-        String totalCapital = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(3).findElements(By.tagName("td")).get(9).getText();
-        String total = driver.findElement(By.tagName("table")).findElements(By.tagName("tr")).get(16).findElements(By.tagName("td")).get(3).getText();
-        System.out.println("uniaoCorrente: " + uniaoCorrente);
-        System.out.println("uniaoCapital: " + uniaoCapital);
-        System.out.println("totalCorrente: " + totalCorrente);
-        System.out.println("totalCapital: " + totalCapital);
-        System.out.println("total: " + total);
-       // return Arrays.asList(uniaoCorrente, uniaoCapital, totalCorrente, totalCapital, total);
+        return driver;
     }
 
-    // essa é de verdade
-    private static void criacaoPlanilhas() throws Exception {
-        XSSFWorkbook workbook = new XSSFWorkbook();
-        XSSFSheet sheet = workbook.createSheet("Teste");
-        //XSSFSheet sheet1 = workbook.createSheet("Segunda Folha");
-        Row dadosMunicipios = sheet.createRow(0);
-
-        Map<Integer, Object[]> dadosTabela = new TreeMap<>();
-        dadosTabela.put(1, new Object[]{"UF", "IBGE", "Município", "União corrente",
-                "União capital", "Total atenção básica corrente", "Total atenção básica capital"});
-
-        int idCol = 0;
-
-        for(Integer key : dadosTabela.keySet()) {
-            dadosMunicipios = sheet.createRow(idCol++);
-            Object[] objectArr = dadosTabela.get(key);
-            int cellId = 0;
-
-            for(Object obj : objectArr) {
-                Cell cell = dadosMunicipios.createCell(cellId++);
-                cell.setCellValue((String)obj);
+    private static String detectChromiumVersion(String chromiumBinary) {
+        try {
+            Process process = new ProcessBuilder(chromiumBinary, "--product-version").start();
+            String version;
+            try (Scanner scanner = new Scanner(process.getInputStream()).useDelimiter("\\A")) {
+                version = scanner.hasNext() ? scanner.next().trim() : null;
             }
+            process.waitFor();
+            return (version != null && !version.isBlank()) ? version : null;
+        } catch (Exception e) {
+            return null;
         }
-
-//        CellStyle cellStyle = CellStyle.BORDER_THICK;
-//        cellStyle.setFillBackgroundColor(new Color());
-//        sheet.addMergedRegion(CellRangeAddress.valueOf("A4:D4"));
-
-        FileOutputStream out = new FileOutputStream("C:/Users/Naionara Ramos/Projetos/robot/planilhas/folhas.xlsx");
-        workbook.write(out);
-        out.close();
     }
-    private void montandoPlanilha(String titulo, Map<String, List<String>> mapeamentoMunicípioValores) throws IOException {
-
-        XSSFWorkbook workbook = new XSSFWorkbook();
-        XSSFSheet sheet = workbook.createSheet(titulo);
-        Row nomesMunicipios = sheet.createRow(0);
-
-        Map<String, Object[]> studentData = new TreeMap<>();
-        studentData.put("1", new Object[]{"128", "2 ano"});
-        studentData.put("2", new Object[]{"149", "3 ano"});
-
-        int idCol = 0;
-
-        for(String key : studentData.keySet()) {
-            nomesMunicipios = sheet.createRow(idCol++);
-            Object[] objectArr = studentData.get(key);
-            int cellId = 0;
-
-            for(Object obj : objectArr) {
-                Cell cell = nomesMunicipios.createCell(cellId++);
-                cell.setCellValue((String)obj);
-            }
-        }
-
-//        Cell municipio = nomesMunicipios.createCell(0);
-//        municipio.setCellValue("Município");
-//
-//        Cell uniaoCorrente = nomesMunicipios.createCell(1);
-//        municipio.setCellValue("União - Corrente");
-//
-//        Cell uniaoCapital = nomesMunicipios.createCell(2);
-//        municipio.setCellValue("União - Capital");
-//
-//        Cell totalCorrente = nomesMunicipios.createCell(3);
-//        municipio.setCellValue("Total Corrente");
-//
-//        Cell totalCapital = nomesMunicipios.createCell(4);
-//        municipio.setCellValue("Total Capital");
-//
-//        Cell totalUniao = nomesMunicipios.createCell(5);
-//        municipio.setCellValue("Total - União");
-
-//        int contador = 1;
-//
-//        Row colunaNome;
-//        Cell cellCity;
-//
-//        for(int i = 0; i < mapeamentoMunicípioValores.size(); i++) {
-//            sheet.createRow(1);
-//            //rowCity.createCell(0);
-//            //cellCity.setCellValue("Município");
-//        }
-
-        FileOutputStream out = new FileOutputStream("C:/Users/Naionara Ramos/Projetos/robot/planilhas/planilha.xlsx");
-        workbook.write(out);
-        out.close();
-    }
-
 }

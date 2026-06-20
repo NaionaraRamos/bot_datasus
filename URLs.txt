@@ -1,0 +1,8 @@
+http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php?S=1&UF=12;&Municipio=120001;&Ano=2020&Periodo=12 -> Acre, Acrelândia, 1 bimestre, 2020
+http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php?S=1&UF=12;&Municipio=120005;&Ano=2020&Periodo=12 -> Assis Brasil
+http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php?S=1&UF=12;&Municipio=120010;&Ano=2020&Periodo=12 -> Brasileia
+http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php?S=1&UF=12;&Municipio=120013;&Ano=2020&Periodo=12 -> Bujari
+http://siops.datasus.gov.br/filtro_rel_ges_dt_municipal.php?S=1&UF=12;&Municipio=120017;&Ano=2020&Periodo=12 -> Capixaba
+
+
+http://siops.datasus.gov.br/consleirespfiscal.php?S=1&UF=12;&Municipio=120001;&Ano=2020&Periodo=2
