@@ -295,7 +295,12 @@ public class Main {
 
     public static void main(String[] args) throws FileNotFoundException, IOException {
 
-        final String URL = "https://siops.datasus.gov.br/consleirespfiscal.php";//?S=1&UF=12;&Municipio=120001;&Ano=2020&Periodo=2";
+        //final String URL = "https://siops.datasus.gov.br/consleirespfiscal.php?S=1&UF=12;&Municipio=120001;&Ano=2020&Periodo=2";
+        // driver.get(URL);
+        // WebElement submitButton = driver.findElement(By.name("BtConsultar"));
+        // submitButton.click();
+        // driver.navigate().back();
+
         WebDriver driver = new Main().getWebDriver(args);
         
         // para criar as urls base, com UF e Município
@@ -306,24 +311,18 @@ public class Main {
         List<String> basicUrls = readItems("URLS_cidades.txt");
         System.out.println("size: " + basicUrls.size());
 
-        // int year = 2016; // vai até 2025
-        // int period = 12;
-        // for (String url : basicUrls) {
-        //     url = url + ";&Ano=" + year + ";&Periodo=" + period;
+        int ano = 2016; // vai até 2025
+        int periodo = 2; // 12 - 1º bimestre; 14 - 2º bimestre; 1 - 3º bimestre; 18 - 4º bimestre; 20 - 5º bimestre; 2 - 6º bimestre
 
-        //     driver.get(url);
-        //     //driver.manage().window().maximize();
+        for (String url : basicUrls) {
+            url = url + ";&Ano=" + ano + ";&Periodo=" + periodo;
 
-            // WebElement submitButton = driver.findElement(By.name("BtConsultar"));
-            // submitButton.click();
+            driver.get(url);
+            WebElement submitButton = driver.findElement(By.name("BtConsultar"));
+            submitButton.click();
+            driver.navigate().back();
+        }
 
-        //     driver.navigate().back();
-        // }
-
-        driver.get(URL);
-        WebElement submitButton = driver.findElement(By.name("BtConsultar"));
-        submitButton.click();
-        driver.navigate().back();
         driver.close();
     }
 
